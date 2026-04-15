@@ -36,16 +36,22 @@ export default function History() {
 
   const grouped = useMemo(() => {
     const groups = {};
-    const order = [];
+    const dateStamps = {};
     for (const e of filtered) {
       const d = new Date(e.ts);
       const key = d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       if (!groups[key]) {
         groups[key] = [];
-        order.push(key);
+        dateStamps[key] = d.getTime();
       }
       groups[key].push(e);
     }
+    // Sort each day's entries newest first
+    for (const key of Object.keys(groups)) {
+      groups[key].sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    }
+    // Sort date groups newest first
+    const order = Object.keys(groups).sort((a, b) => dateStamps[b] - dateStamps[a]);
     return { groups, order };
   }, [filtered]);
 

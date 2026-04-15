@@ -245,9 +245,9 @@ export default function Log() {
     };
 
     if (isEditMode) {
-      entry.ts = editEntry.ts;
+      entry.ts = entryTs; // use edited date/time
       entry.editedAt = new Date().toISOString();
-      if (!isBackdated && editEntry.isBackdated) entry.isBackdated = true;
+      entry.isBackdated = editEntry.isBackdated || isBackdated;
       updateEntry(entry);
     } else {
       saveEntry(entry);
@@ -391,6 +391,27 @@ export default function Log() {
       {/* ====== STEP 2: Core Symptoms ====== */}
       {step === 2 && (
         <div>
+          {/* Date/Time — shown in edit mode since step 1 is skipped */}
+          {isEditMode && (
+            <div style={{ marginBottom: 16 }}>
+              {label('DATE & TIME')}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)}
+                    style={{ width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border)',
+                      borderRadius: 6, padding: '8px 10px', fontSize: 16, color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-mono)', outline: 'none' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <input type="time" value={entryTime} onChange={e => setEntryTime(e.target.value)}
+                    style={{ width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border)',
+                      borderRadius: 6, padding: '8px 10px', fontSize: 16, color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-mono)', outline: 'none' }} />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Pain */}
           {label('ABDOMINAL PAIN LEVEL')}
           {isTenesmus && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8, marginTop: -4 }}>Moderate or Severe counts toward VA pain days for this type</div>}

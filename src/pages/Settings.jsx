@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getEntries, exportAllData, linkToAccount, isPinSet, changePin } from '../storage';
-import { getUserId } from '../supabase';
+import { getEntries, exportAllData, isPinSet, changePin } from '../storage';
+import { getUsername } from '../supabase';
 
 function exportCSV(entries) {
-  const header = 'Date,Time,Episode #,Pain Level,Urgency,Stool Type,Straining,Bloating,Distension,Mucus,Duration,Functional Impact,Medications,Notes';
+  const header = 'Date,Time,Pain Level,Stool Type,Urgency,Straining,Bloating,Distension,Mucus,Duration,Functional Impact,Medications,Notes';
   const rows = [header];
   for (const e of entries) {
     const d = new Date(e.ts);
@@ -17,7 +17,7 @@ function exportCSV(entries) {
     const meds = (e.meds || []).join(';');
     const notes = `"${(e.notes || '').replace(/"/g, '""')}"`;
     const duration = e.duration || '';
-    rows.push(`${date},${time},${e.episodeNum},${e.pain},${e.urgency},${e.stoolType},${e.straining},${e.bloating},${e.distension},${e.mucus},${duration},${impact},${meds},${notes}`);
+    rows.push(`${date},${time},${e.pain},${e.stoolType},${e.urgency},${e.straining},${e.bloating},${e.distension},${e.mucus},${duration},${impact},${meds},${notes}`);
   }
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -34,34 +34,12 @@ function exportCSV(entries) {
 export default function Settings() {
   const navigate = useNavigate();
   const entries = getEntries();
-  const userId = getUserId();
-
-  const [linkId, setLinkId] = useState('');
-  const [syncMsg, setSyncMsg] = useState('');
-  const [copied, setCopied] = useState(false);
+  const username = getUsername();
 
   const [showPinChange, setShowPinChange] = useState(false);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [pinMsg, setPinMsg] = useState('');
-
-  const handleCopy = () => {
-    if (userId) {
-      navigator.clipboard.writeText(userId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-    }
-  };
-
-  const handleLink = async () => {
-    const id = linkId.trim();
-    if (!id) return;
-    try {
-      const result = await linkToAccount(id);
-      setSyncMsg(`Linked! ${result.entries} entries synced. Reloading...`);
-      setTimeout(() => window.location.reload(), 2000);
-    } catch (e) {
-      setSyncMsg(e.message);
-    }
-  };
 
   const handlePinChange = async () => {
     if (currentPin.length !== 4 || newPin.length !== 4) {
@@ -93,71 +71,42 @@ export default function Settings() {
     }}>{children}</div>
   );
 
-  const btnStyle = (primary) => ({
-    width: '100%', height: 42, borderRadius: 8,
-    background: primary ? 'var(--blue)' : 'transparent',
-    border: primary ? 'none' : '1px solid var(--border)',
-    color: primary ? 'white' : 'var(--blue-light)',
-    fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono)',
-  });
+  const btn = (label, onClick) => (
+    <button onClick={onClick} style={{
+      width: '100%', height: 42, borderRadius: 8, background: 'transparent',
+      border: '1px solid var(--border)', color: 'var(--blue-light)',
+      fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono)', marginBottom: 6,
+    }}>{label}</button>
+  );
 
   return (
     <div style={{ padding: '0 16px' }}>
-      {/* Header */}
       <div style={{ paddingTop: 20, paddingBottom: 8 }}>
         <div style={{ fontSize: 18, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-primary)' }}>
           SETTINGS
         </div>
       </div>
 
-      {/* === Account & Sync === */}
-      {sectionLabel('ACCOUNT & SYNC')}
+      {/* Account */}
+      {sectionLabel('ACCOUNT')}
       {card(
-        <>
-          {userId && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Your Account ID</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{
-                  flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border)',
-                  borderRadius: 6, padding: '8px 10px', fontSize: 11, fontFamily: 'var(--font-mono)',
-                  color: 'var(--text-primary)', wordBreak: 'break-all',
-                }}>{userId}</div>
-                <button onClick={handleCopy} style={{
-                  background: 'transparent', border: '1px solid var(--border)',
-                  borderRadius: 6, padding: '8px 12px', fontSize: 12,
-                  color: copied ? 'var(--green)' : 'var(--blue-light)',
-                  fontFamily: 'var(--font-mono)', cursor: 'pointer', whiteSpace: 'nowrap',
-                }}>{copied ? '✓ Copied' : 'Copy'}</button>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                Entries and PIN sync automatically across devices.
-              </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 15, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+              {username || 'Not signed in'}
             </div>
-          )}
-
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Link Another Device</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              value={linkId} onChange={e => setLinkId(e.target.value)}
-              placeholder="Paste Account ID"
-              style={{
-                flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border)',
-                borderRadius: 6, padding: '8px 10px', fontSize: 16, color: 'var(--text-primary)',
-                fontFamily: 'var(--font-mono)', outline: 'none',
-              }}
-            />
-            <button onClick={handleLink} style={btnStyle(true)}>Link</button>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Syncs automatically across your devices
+            </div>
           </div>
-          {syncMsg && (
-            <div style={{ fontSize: 12, color: syncMsg.includes('!') ? 'var(--green)' : 'var(--red)', marginTop: 8, fontFamily: 'var(--font-mono)' }}>
-              {syncMsg}
-            </div>
-          )}
-        </>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: username ? 'var(--green)' : 'var(--text-muted)',
+          }} />
+        </div>
       )}
 
-      {/* === Security === */}
+      {/* Security */}
       {sectionLabel('SECURITY')}
       {card(
         <>
@@ -165,7 +114,7 @@ export default function Settings() {
             <div>
               <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>PIN Lock</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {isPinSet() ? 'PIN is set · Locks after 5 min' : 'Not set'}
+                {isPinSet() ? 'Locks after 5 min inactivity' : 'Not set'}
               </div>
             </div>
             {isPinSet() && (
@@ -178,55 +127,40 @@ export default function Settings() {
           </div>
           {showPinChange && (
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <input
-                type="password" inputMode="numeric" maxLength={4}
+              <input type="password" inputMode="numeric" maxLength={4}
                 value={currentPin} onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="Current PIN"
-                style={{
-                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)',
                   borderRadius: 6, padding: '8px 10px', fontSize: 16, color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-mono)', outline: 'none',
-                }}
-              />
-              <input
-                type="password" inputMode="numeric" maxLength={4}
+                  fontFamily: 'var(--font-mono)', outline: 'none' }} />
+              <input type="password" inputMode="numeric" maxLength={4}
                 value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="New PIN"
-                style={{
-                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)',
                   borderRadius: 6, padding: '8px 10px', fontSize: 16, color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-mono)', outline: 'none',
-                }}
-              />
-              <button onClick={handlePinChange} style={btnStyle(true)}>Update PIN</button>
-              {pinMsg && (
-                <div style={{ fontSize: 12, color: pinMsg === 'PIN updated' ? 'var(--green)' : 'var(--red)', fontFamily: 'var(--font-mono)' }}>
-                  {pinMsg}
-                </div>
-              )}
+                  fontFamily: 'var(--font-mono)', outline: 'none' }} />
+              <button onClick={handlePinChange} style={{
+                width: '100%', height: 42, borderRadius: 8, background: 'var(--blue)',
+                border: 'none', color: 'white', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono)',
+              }}>Update PIN</button>
+              {pinMsg && <div style={{ fontSize: 12, color: pinMsg === 'PIN updated' ? 'var(--green)' : 'var(--red)', fontFamily: 'var(--font-mono)' }}>{pinMsg}</div>}
             </div>
           )}
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-            Biometrics (Face ID / Touch ID) are set up per device.
+            Face ID / Touch ID set up per device on first sign-in.
           </div>
         </>
       )}
 
-      {/* === Exports === */}
+      {/* Exports */}
       {sectionLabel('EXPORTS')}
       {card(
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button onClick={() => exportCSV(entries)} style={btnStyle(false)}>
-            Export Log to CSV
-          </button>
-          <button onClick={exportAllData} style={btnStyle(false)}>
-            Export JSON Backup
-          </button>
-          <button onClick={() => navigate('/report')} style={btnStyle(false)}>
-            Generate VA Report
-          </button>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-            CSV for your VSO · JSON for device backup · Report for VA claim
+        <div>
+          {btn('Export Log to CSV', () => exportCSV(entries))}
+          {btn('Export JSON Backup', exportAllData)}
+          {btn('Generate VA Report', () => navigate('/report'))}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            CSV for your VSO · JSON for backup · Report for VA claim
           </div>
         </div>
       )}

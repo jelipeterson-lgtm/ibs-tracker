@@ -343,81 +343,71 @@ export default function Log() {
         ))}
       </div>
 
-      {/* Qualifying counter */}
-      <div style={{
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 8, padding: '10px 14px', marginTop: 12,
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ background: 'var(--bg-input)', height: 4, borderRadius: 2, width: '100%' }}>
-            <div style={{ height: 4, borderRadius: 2, background: qColor, width: `${Math.min(100, (qualifyingCount / 6) * 100)}%`, transition: 'width 0.3s' }} />
-          </div>
+      {/* Claim strength message */}
+      {pain && pain !== 'None' && qualifyingCount >= 2 && (
+        <div style={{ fontSize: 12, color: 'var(--green)', fontFamily: 'var(--font-mono)', marginTop: 10 }}>
+          ✓ This entry counts toward your 30% claim
         </div>
-        <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: qColor, whiteSpace: 'nowrap' }}>
-          {qualifyingCount}/6 {qualifyingCount >= 2 ? '✓' : ''}
-        </div>
+      )}
+
+      {/* Impact — always visible */}
+      {sectionLabel('IMPACT ON YOUR DAY')}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {['No impact', 'Left work', 'Late', 'Cancelled plans', 'Multiple trips', 'Gas/odor', 'Travel disrupted'].map(v => {
+          const fullVal = v === 'Left work' ? 'Had to leave work or meeting' :
+            v === 'Late' ? 'Caused me to be late' :
+            v === 'Cancelled plans' ? 'Cancelled or modified plans' :
+            v === 'Multiple trips' ? 'Multiple urgent trips at work' :
+            v === 'Gas/odor' ? 'Socially disruptive gas or odor' :
+            v === 'Travel disrupted' ? 'Travel disrupted' : v;
+          return (
+            <button key={v} onClick={() => handleImpactToggle(fullVal)} style={{
+              background: impact.includes(fullVal) ? 'var(--blue-dim)' : 'var(--bg-input)',
+              border: `1px solid ${impact.includes(fullVal) ? 'var(--blue)' : 'var(--border)'}`,
+              color: impact.includes(fullVal) ? 'var(--text-primary)' : 'var(--text-secondary)',
+              borderRadius: 20, padding: '6px 12px', fontSize: 12, cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+            }}>{v}</button>
+          );
+        })}
       </div>
 
-      {/* Optional details */}
+      {/* Notes */}
+      {sectionLabel('NOTES')}
+      <textarea
+        value={notes} onChange={e => setNotes(e.target.value)}
+        placeholder="How did this affect you? (missed meeting, had to pull over, etc.)"
+        style={{
+          minHeight: 60, background: 'var(--bg-input)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: 10, fontSize: 16, width: '100%', color: 'var(--text-primary)',
+          fontFamily: 'var(--font-body)', resize: 'vertical', outline: 'none',
+        }}
+      />
+
+      {/* Meds — collapsed */}
       <button onClick={() => setShowDetails(!showDetails)} style={{
         background: 'none', border: 'none', color: 'var(--text-muted)',
         fontSize: 12, fontFamily: 'var(--font-mono)', cursor: 'pointer',
-        marginTop: 12, padding: 0,
+        marginTop: 10, padding: 0,
       }}>
-        {showDetails ? '▲ Hide details' : '▼ Add details (impact, meds, notes)'}
+        {showDetails ? '▲ Hide medications' : '▼ Add medications taken'}
       </button>
 
       {showDetails && (
-        <div style={{ marginTop: 8 }}>
-          {sectionLabel('FUNCTIONAL IMPACT')}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {['No impact', 'Left work', 'Late', 'Cancelled plans', 'Multiple trips', 'Gas/odor', 'Travel disrupted'].map(v => {
-              const fullVal = v === 'Left work' ? 'Had to leave work or meeting' :
-                v === 'Late' ? 'Caused me to be late' :
-                v === 'Cancelled plans' ? 'Cancelled or modified plans' :
-                v === 'Multiple trips' ? 'Multiple urgent trips at work' :
-                v === 'Gas/odor' ? 'Socially disruptive gas or odor' :
-                v === 'Travel disrupted' ? 'Travel disrupted' : v;
-              return (
-                <button key={v} onClick={() => handleImpactToggle(fullVal)} style={{
-                  background: impact.includes(fullVal) ? 'var(--blue-dim)' : 'var(--bg-input)',
-                  border: `1px solid ${impact.includes(fullVal) ? 'var(--blue)' : 'var(--border)'}`,
-                  color: impact.includes(fullVal) ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  borderRadius: 20, padding: '6px 12px', fontSize: 12, cursor: 'pointer',
-                  fontFamily: 'var(--font-body)',
-                }}>{v}</button>
-              );
-            })}
-          </div>
-
-          {sectionLabel('MEDICATIONS')}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {['None', 'Imodium', 'Fiber', 'Dairy avoidance', 'Other diet'].map(v => {
-              const fullVal = v === 'Fiber' ? 'Fiber supplement' :
-                v === 'Other diet' ? 'Other dietary restriction' : v;
-              return (
-                <button key={v} onClick={() => handleMedsToggle(fullVal)} style={{
-                  background: meds.includes(fullVal) ? 'var(--blue-dim)' : 'var(--bg-input)',
-                  border: `1px solid ${meds.includes(fullVal) ? 'var(--blue)' : 'var(--border)'}`,
-                  color: meds.includes(fullVal) ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  borderRadius: 20, padding: '6px 12px', fontSize: 12, cursor: 'pointer',
-                  fontFamily: 'var(--font-body)',
-                }}>{v}</button>
-              );
-            })}
-          </div>
-
-          {sectionLabel('NOTES')}
-          <textarea
-            value={notes} onChange={e => setNotes(e.target.value)}
-            placeholder="Optional..."
-            style={{
-              minHeight: 60, background: 'var(--bg-input)', border: '1px solid var(--border)',
-              borderRadius: 8, padding: 10, fontSize: 16, width: '100%', color: 'var(--text-primary)',
-              fontFamily: 'var(--font-body)', resize: 'vertical', outline: 'none',
-            }}
-          />
+        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {['None', 'Imodium', 'Fiber', 'Dairy avoidance', 'Other diet'].map(v => {
+            const fullVal = v === 'Fiber' ? 'Fiber supplement' :
+              v === 'Other diet' ? 'Other dietary restriction' : v;
+            return (
+              <button key={v} onClick={() => handleMedsToggle(fullVal)} style={{
+                background: meds.includes(fullVal) ? 'var(--blue-dim)' : 'var(--bg-input)',
+                border: `1px solid ${meds.includes(fullVal) ? 'var(--blue)' : 'var(--border)'}`,
+                color: meds.includes(fullVal) ? 'var(--text-primary)' : 'var(--text-secondary)',
+                borderRadius: 20, padding: '6px 12px', fontSize: 12, cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+              }}>{v}</button>
+            );
+          })}
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { pushToCloud, pullFromCloud, getUserId, generateUserId, supabase } from './supabase';
+import { pushToCloud, pullFromCloud, getUserId, supabase } from './supabase';
 
 const ENTRIES_KEY = 'ibs_log_entries';
 const LAST_LOG_KEY = 'ibs_last_log_time';
@@ -88,7 +88,7 @@ export async function changePin(currentPin, newPin) {
   return true;
 }
 
-// --- WebAuthn (always per-device, not synced) ---
+// --- WebAuthn (per-device) ---
 
 export function getWebAuthnCredential() {
   try {
@@ -109,88 +109,53 @@ export function clearWebAuthnCredential() {
 
 // --- Cloud Sync ---
 
-// Fire-and-forget push to cloud after any local change
 function syncPush() {
+  if (!getUserId()) return;
   const entries = getEntries();
   const pinHash = getPinHash();
   pushToCloud(entries, pinHash).catch(() => {});
 }
 
-// Merge cloud data into local — called on app load
+// Called on app load — merge cloud data with local
 export async function syncOnLoad() {
-  if (!supabase) return;
+  if (!supabase || !getUserId()) return;
 
-  // Ensure we have a user ID
-  let userId = getUserId();
-  if (!userId) {
-    userId = generateUserId();
-  }
-
-  const cloud = await pullFromCloud(userId);
-
-  if (!cloud) {
-    // No cloud data yet — push local state up
-    syncPush();
-    return;
-  }
+  const cloud = await pullFromCloud();
+  if (!cloud) { syncPush(); return; }
 
   const localEntries = getEntries();
   const cloudEntries = cloud.entries || [];
 
-  // Merge: build map by ID, newest wins
+  // Merge by ID, newest wins
   const merged = new Map();
-  for (const e of localEntries) {
-    merged.set(e.id, e);
-  }
+  for (const e of localEntries) merged.set(e.id, e);
   for (const e of cloudEntries) {
     if (!e.id) continue;
     const existing = merged.get(e.id);
     if (!existing) {
       merged.set(e.id, e);
     } else {
-      const existingTime = existing.editedAt || existing.ts;
+      const localTime = existing.editedAt || existing.ts;
       const cloudTime = e.editedAt || e.ts;
-      if (new Date(cloudTime) > new Date(existingTime)) {
-        merged.set(e.id, e);
-      }
+      if (new Date(cloudTime) > new Date(localTime)) merged.set(e.id, e);
     }
   }
 
-  // Sort newest first, write back
   const allEntries = Array.from(merged.values()).sort((a, b) => new Date(b.ts) - new Date(a.ts));
   writeEntries(allEntries);
 
-  // Sync PIN from cloud if local doesn't have one
   if (!isPinSet() && cloud.pin_hash) {
     localStorage.setItem(PIN_HASH_KEY, cloud.pin_hash);
   }
 
-  // Push merged state back to cloud
   syncPush();
 }
 
-// Link to existing account — pulls everything from cloud
-export async function linkToAccount(existingUserId) {
-  const { linkDevice } = await import('./supabase');
-  const cloud = await linkDevice(existingUserId);
-
-  // Replace local data with cloud data
-  const cloudEntries = cloud.entries || [];
-  cloudEntries.sort((a, b) => new Date(b.ts) - new Date(a.ts));
-  writeEntries(cloudEntries);
-
-  if (cloud.pin_hash) {
-    localStorage.setItem(PIN_HASH_KEY, cloud.pin_hash);
-  }
-
-  return { entries: cloudEntries.length };
-}
-
-// --- JSON Export/Import (kept as backup option) ---
+// --- Export ---
 
 export function exportAllData() {
   const entries = getEntries();
-  const data = { version: 2, exportedAt: new Date().toISOString(), userId: getUserId(), entries };
+  const data = { version: 2, exportedAt: new Date().toISOString(), entries };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -201,34 +166,4 @@ export function exportAllData() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-export function importData(jsonString) {
-  try {
-    const data = JSON.parse(jsonString);
-    const incoming = data.entries || data;
-    if (!Array.isArray(incoming)) throw new Error('Invalid format');
-
-    const existing = getEntries();
-    const existingIds = new Set(existing.map(e => e.id));
-
-    let added = 0, updated = 0;
-    for (const entry of incoming) {
-      if (!entry.id || !entry.ts) continue;
-      const idx = existing.findIndex(e => e.id === entry.id);
-      if (idx === -1) { existing.push(entry); added++; }
-      else {
-        const existingEdited = existing[idx].editedAt || existing[idx].ts;
-        const incomingEdited = entry.editedAt || entry.ts;
-        if (new Date(incomingEdited) > new Date(existingEdited)) { existing[idx] = entry; updated++; }
-      }
-    }
-
-    existing.sort((a, b) => new Date(b.ts) - new Date(a.ts));
-    writeEntries(existing);
-    syncPush();
-    return { added, updated };
-  } catch (e) {
-    throw new Error('Could not read backup file: ' + e.message);
-  }
 }

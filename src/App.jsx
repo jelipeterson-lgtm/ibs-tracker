@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Home as HomeIcon, Plus, ClipboardList, BarChart3, FileText } from 'lucide-react';
+import { Home as HomeIcon, Plus, ClipboardList, BarChart3, Settings as SettingsIcon } from 'lucide-react';
 import { getLastLogTime, isPinSet, syncOnLoad } from './storage';
 import PinLock from './PinLock';
 import Home from './pages/Home';
@@ -8,6 +8,7 @@ import Log from './pages/Log';
 import History from './pages/History';
 import Summary from './pages/Summary';
 import Report from './pages/Report';
+import SettingsPage from './pages/Settings';
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
@@ -44,7 +45,7 @@ function BottomNav() {
     { to: '/log', icon: Plus, label: 'Log' },
     { to: '/history', icon: ClipboardList, label: 'History' },
     { to: '/summary', icon: BarChart3, label: 'Summary' },
-    { to: '/report', icon: FileText, label: 'Report' },
+    { to: '/settings', icon: SettingsIcon, label: 'Settings' },
   ];
   return (
     <nav style={{
@@ -94,6 +95,7 @@ export default function App() {
   const [locked, setLocked] = useState(true);
   const lastActivity = useRef(Date.now());
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Sync on mount, then check PIN
   useEffect(() => {
@@ -159,7 +161,8 @@ export default function App() {
   const handleUnlock = useCallback(() => {
     setLocked(false);
     lastActivity.current = Date.now();
-  }, []);
+    navigate('/log');
+  }, [navigate]);
 
   if (locked) {
     return <PinLock onUnlock={handleUnlock} />;
@@ -180,6 +183,7 @@ export default function App() {
           <Route path="/history" element={<History />} />
           <Route path="/summary" element={<Summary />} />
           <Route path="/report" element={<Report />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
       <BottomNav />

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getEntries, exportAllData, isPinSet, changePin } from '../storage';
-import { getUsername } from '../supabase';
 
 function exportCSV(entries) {
   const header = 'Date,Time,Pain Level,Stool Type,Urgency,Straining,Bloating,Distension,Mucus,Duration,Functional Impact,Medications,Notes';
@@ -34,8 +33,6 @@ function exportCSV(entries) {
 export default function Settings() {
   const navigate = useNavigate();
   const entries = getEntries();
-  const username = getUsername();
-
   const [showPinChange, setShowPinChange] = useState(false);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -86,25 +83,6 @@ export default function Settings() {
           SETTINGS
         </div>
       </div>
-
-      {/* Account */}
-      {sectionLabel('ACCOUNT')}
-      {card(
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 15, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
-              {username || 'Not signed in'}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Syncs automatically across your devices
-            </div>
-          </div>
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: username ? 'var(--green)' : 'var(--text-muted)',
-          }} />
-        </div>
-      )}
 
       {/* Security */}
       {sectionLabel('SECURITY')}

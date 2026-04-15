@@ -1,16 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { isPinSet, verifyPin, setPin, getPinHash, getWebAuthnCredential, setWebAuthnCredential } from './storage';
-import { getUserId, getUsername, createAccount, signIn } from './supabase';
+import { isPinSet, verifyPin, setPin, getWebAuthnCredential, setWebAuthnCredential } from './storage';
 
-function PinDots({ length, filled }) {
+function PinDots({ filled }) {
   return (
-    <div style={{ display: 'flex', gap: 16, justifyContent: 'center', margin: '20px 0' }}>
-      {Array.from({ length }, (_, i) => (
+    <div style={{ display: 'flex', gap: 20, justifyContent: 'center', margin: '32px 0' }}>
+      {[0, 1, 2, 3].map(i => (
         <div key={i} style={{
-          width: 16, height: 16, borderRadius: '50%',
+          width: 20, height: 20, borderRadius: '50%',
           background: i < filled ? 'var(--blue-light)' : 'transparent',
           border: `2px solid ${i < filled ? 'var(--blue-light)' : 'var(--border)'}`,
-          transition: 'background 0.15s',
+          transition: 'background 0.1s',
         }} />
       ))}
     </div>
@@ -18,56 +17,56 @@ function PinDots({ length, filled }) {
 }
 
 function Keypad({ onDigit, onDelete }) {
-  const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
+  const rows = [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', 'del']];
+  const sub = { '1': '', '2': 'ABC', '3': 'DEF', '4': 'GHI', '5': 'JKL', '6': 'MNO', '7': 'PQRS', '8': 'TUV', '9': 'WXYZ', '0': '' };
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, maxWidth: 260, margin: '0 auto' }}>
-      {digits.map((d, i) => {
-        if (d === '') return <div key={i} />;
-        if (d === 'del') {
-          return (
-            <button key={i} onClick={onDelete} style={{
-              height: 56, borderRadius: 12, background: 'transparent',
-              border: '1px solid var(--border)', color: 'var(--text-secondary)',
-              fontSize: 14, fontFamily: 'var(--font-mono)', cursor: 'pointer',
-            }}>DEL</button>
-          );
-        }
-        return (
-          <button key={i} onClick={() => onDigit(d)} style={{
-            height: 56, borderRadius: 12, background: 'var(--bg-card)',
-            border: '1px solid var(--border)', color: 'var(--text-primary)',
-            fontSize: 24, fontFamily: 'var(--font-mono)', cursor: 'pointer',
-          }}>{d}</button>
-        );
-      })}
+    <div style={{ width: '100%', maxWidth: 300, margin: '0 auto' }}>
+      {rows.map((row, ri) => (
+        <div key={ri} style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
+          {row.map((d, ci) => {
+            if (d === '') return <div key={ci} style={{ width: 78, height: 78 }} />;
+            if (d === 'del') {
+              return (
+                <button key={ci} onClick={onDelete} style={{
+                  width: 78, height: 78, borderRadius: '50%', background: 'transparent',
+                  border: 'none', color: 'var(--text-secondary)',
+                  fontSize: 15, fontFamily: 'var(--font-body)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>Delete</button>
+              );
+            }
+            return (
+              <button key={ci} onClick={() => onDigit(d)} style={{
+                width: 78, height: 78, borderRadius: '50%',
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                color: 'var(--text-primary)', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: 32, fontFamily: 'var(--font-body)', fontWeight: 300, lineHeight: 1 }}>{d}</span>
+                {sub[d] && <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', marginTop: 2 }}>{sub[d]}</span>}
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
 
-async function hashPinRaw(pin) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode('ibs-va-tracker-salt:' + pin);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 export default function PinLock({ onUnlock }) {
-  // Modes: 'choose' (new vs existing), 'name' (enter name), 'setup' (set PIN), 'confirm' (confirm PIN), 'unlock' (returning user)
-  const [mode, setMode] = useState('loading');
-  const [name, setName] = useState('');
+  const [mode, setMode] = useState('loading'); // loading, setup, confirm, unlock
   const [pin, setLocalPin] = useState('');
   const [setupPin, setSetupPin] = useState('');
   const [error, setError] = useState('');
-  const [isNewAccount, setIsNewAccount] = useState(true);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const attemptedBiometric = useRef(false);
 
   useEffect(() => {
-    if (getUserId() && isPinSet()) {
+    if (isPinSet()) {
       setMode('unlock');
       checkBiometric();
     } else {
-      setMode('choose');
+      setMode('setup');
     }
   }, []);
 
@@ -103,6 +102,9 @@ export default function PinLock({ onUnlock }) {
 
   async function registerBiometric() {
     try {
+      if (!window.PublicKeyCredential) return;
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!available) return;
       const challenge = crypto.getRandomValues(new Uint8Array(32));
       const credential = await navigator.credentials.create({
         publicKey: {
@@ -125,13 +127,6 @@ export default function PinLock({ onUnlock }) {
     } catch {}
   }
 
-  const handleNameSubmit = () => {
-    const n = name.trim();
-    if (!n) { setError('Enter your name'); return; }
-    setError('');
-    setMode('setup');
-  };
-
   const handleDigit = (d) => {
     if (pin.length >= 4) return;
     const next = pin + d;
@@ -145,9 +140,9 @@ export default function PinLock({ onUnlock }) {
         setMode('confirm');
       } else if (mode === 'confirm') {
         if (next === setupPin) {
-          handleAccountCreate(next);
+          finishSetup(next);
         } else {
-          setError('PINs do not match');
+          setError('PINs didn\'t match. Try again.');
           setLocalPin('');
           setSetupPin('');
           setMode('setup');
@@ -163,38 +158,10 @@ export default function PinLock({ onUnlock }) {
     setError('');
   };
 
-  async function handleAccountCreate(pinValue) {
-    try {
-      const h = await hashPinRaw(pinValue);
-      if (isNewAccount) {
-        await createAccount(name.trim(), h);
-      } else {
-        const data = await signIn(name.trim(), h);
-        // Pull cloud entries into local storage
-        const { syncFromCloud } = await import('./storage');
-        if (data.entries) {
-          localStorage.setItem('ibs_log_entries', JSON.stringify(data.entries));
-        }
-        if (data.pin_hash) {
-          localStorage.setItem('ibs_pin_hash', data.pin_hash);
-        }
-      }
-      // Set PIN locally
-      await setPin(pinValue);
-      // Offer biometric
-      try {
-        if (window.PublicKeyCredential) {
-          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-          if (available) await registerBiometric();
-        }
-      } catch {}
-      onUnlock();
-    } catch (e) {
-      setError(e.message);
-      setLocalPin('');
-      setSetupPin('');
-      setMode('setup');
-    }
+  async function finishSetup(pinValue) {
+    await setPin(pinValue);
+    await registerBiometric();
+    onUnlock();
   }
 
   async function handleUnlock(enteredPin) {
@@ -202,109 +169,46 @@ export default function PinLock({ onUnlock }) {
     if (valid) {
       onUnlock();
     } else {
-      setError('Incorrect PIN');
+      setError('Wrong PIN');
       setLocalPin('');
     }
   }
 
   if (mode === 'loading') return null;
 
+  const title = mode === 'setup' ? 'Set Your PIN' : mode === 'confirm' ? 'Confirm PIN' : 'Enter PIN';
+
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'var(--bg-base)',
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', zIndex: 1000, padding: 24,
+      justifyContent: 'center', zIndex: 1000, padding: '24px 32px',
     }}>
-      <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 8 }}>
+      <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 12 }}>
         IBS VA TRACKER
       </div>
+      <div style={{ fontSize: 20, fontFamily: 'var(--font-body)', color: 'var(--text-primary)' }}>
+        {title}
+      </div>
 
-      {/* Choose: New or Existing */}
-      {mode === 'choose' && (
-        <div style={{ width: '100%', maxWidth: 300 }}>
-          <div style={{ fontSize: 16, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', textAlign: 'center', marginBottom: 20 }}>
-            Welcome
-          </div>
-          <button onClick={() => { setIsNewAccount(true); setMode('name'); }} style={{
-            width: '100%', height: 52, borderRadius: 10, background: 'var(--blue)',
-            color: 'white', fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-body)',
-            border: 'none', cursor: 'pointer', marginBottom: 10,
-          }}>New Account</button>
-          <button onClick={() => { setIsNewAccount(false); setMode('name'); }} style={{
-            width: '100%', height: 52, borderRadius: 10, background: 'transparent',
-            border: '1px solid var(--border)', color: 'var(--blue-light)',
-            fontSize: 15, fontFamily: 'var(--font-body)', cursor: 'pointer',
-          }}>Sign In</button>
+      <PinDots filled={pin.length} />
+
+      {error && (
+        <div style={{ color: 'var(--red)', fontSize: 14, fontFamily: 'var(--font-body)', marginBottom: 16 }}>
+          {error}
         </div>
       )}
 
-      {/* Enter name */}
-      {mode === 'name' && (
-        <div style={{ width: '100%', maxWidth: 300 }}>
-          <div style={{ fontSize: 16, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', textAlign: 'center', marginBottom: 4 }}>
-            {isNewAccount ? 'Create Account' : 'Sign In'}
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 16 }}>
-            {isNewAccount ? 'Pick a name for your account' : 'Enter your account name'}
-          </div>
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Your name"
-            autoFocus
-            onKeyDown={e => e.key === 'Enter' && handleNameSubmit()}
-            style={{
-              width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border)',
-              borderRadius: 8, padding: '14px 16px', fontSize: 18, color: 'var(--text-primary)',
-              fontFamily: 'var(--font-body)', outline: 'none', textAlign: 'center', marginBottom: 12,
-            }}
-          />
-          {error && <div style={{ color: 'var(--red)', fontSize: 13, textAlign: 'center', marginBottom: 8, fontFamily: 'var(--font-mono)' }}>{error}</div>}
-          <button onClick={handleNameSubmit} style={{
-            width: '100%', height: 48, borderRadius: 10, background: 'var(--blue)',
-            color: 'white', fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-body)',
-            border: 'none', cursor: 'pointer',
-          }}>Next</button>
-          <button onClick={() => { setMode('choose'); setError(''); }} style={{
-            width: '100%', background: 'none', border: 'none', color: 'var(--text-muted)',
-            fontSize: 13, cursor: 'pointer', marginTop: 12, fontFamily: 'var(--font-body)',
-          }}>Back</button>
-        </div>
-      )}
+      <Keypad onDigit={handleDigit} onDelete={handleDelete} />
 
-      {/* Set / Confirm / Enter PIN */}
-      {(mode === 'setup' || mode === 'confirm' || mode === 'unlock') && (
-        <div>
-          <div style={{ fontSize: 16, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', textAlign: 'center', marginBottom: 4 }}>
-            {mode === 'setup' ? (isNewAccount ? 'Set Your PIN' : 'Enter Your PIN') :
-             mode === 'confirm' ? 'Confirm PIN' : 'Enter PIN'}
-          </div>
-          {mode === 'unlock' && getUsername() && (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
-              {getUsername()}
-            </div>
-          )}
-
-          <PinDots length={4} filled={pin.length} />
-
-          {error && (
-            <div style={{ color: 'var(--red)', fontSize: 13, textAlign: 'center', marginBottom: 12, fontFamily: 'var(--font-mono)' }}>
-              {error}
-            </div>
-          )}
-
-          <Keypad onDigit={handleDigit} onDelete={handleDelete} />
-
-          {mode === 'unlock' && biometricAvailable && (
-            <button onClick={tryBiometricUnlock} style={{
-              display: 'block', margin: '20px auto 0', background: 'none', border: '1px solid var(--border)',
-              borderRadius: 10, padding: '10px 20px', color: 'var(--blue-light)',
-              fontSize: 14, fontFamily: 'var(--font-body)', cursor: 'pointer',
-            }}>
-              Use Face ID / Touch ID
-            </button>
-          )}
-        </div>
+      {mode === 'unlock' && biometricAvailable && (
+        <button onClick={tryBiometricUnlock} style={{
+          display: 'block', margin: '24px auto 0', background: 'none', border: '1px solid var(--border)',
+          borderRadius: 12, padding: '12px 28px', color: 'var(--blue-light)',
+          fontSize: 15, fontFamily: 'var(--font-body)', cursor: 'pointer',
+        }}>
+          Use Face ID / Touch ID
+        </button>
       )}
     </div>
   );

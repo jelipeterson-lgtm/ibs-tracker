@@ -1,4 +1,4 @@
-import { pushToCloud, pullFromCloud, getUserId, supabase } from './supabase';
+import { pushToCloud, pullFromCloud, supabase } from './supabase';
 
 const ENTRIES_KEY = 'ibs_log_entries';
 const LAST_LOG_KEY = 'ibs_last_log_time';
@@ -110,7 +110,6 @@ export function clearWebAuthnCredential() {
 // --- Cloud Sync ---
 
 function syncPush() {
-  if (!getUserId()) return;
   const entries = getEntries();
   const pinHash = getPinHash();
   pushToCloud(entries, pinHash).catch(() => {});
@@ -118,7 +117,7 @@ function syncPush() {
 
 // Called on app load — merge cloud data with local
 export async function syncOnLoad() {
-  if (!supabase || !getUserId()) return;
+  if (!supabase) return;
 
   const cloud = await pullFromCloud();
   if (!cloud) { syncPush(); return; }

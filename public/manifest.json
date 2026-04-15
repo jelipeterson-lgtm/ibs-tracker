@@ -1,0 +1,14 @@
+{
+  "name": "IBS VA Tracker",
+  "short_name": "IBS Log",
+  "description": "VA disability symptom log for IBS — DC 7319",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080f1a",
+  "theme_color": "#080f1a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

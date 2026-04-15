@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Home as HomeIcon, Plus, ClipboardList, BarChart3, FileText } from 'lucide-react';
-import { getLastLogTime, isPinSet } from './storage';
+import { getLastLogTime, isPinSet, syncOnLoad } from './storage';
 import PinLock from './PinLock';
 import Home from './pages/Home';
 import Log from './pages/Log';
@@ -95,12 +95,14 @@ export default function App() {
   const lastActivity = useRef(Date.now());
   const location = useLocation();
 
-  // PIN lock: check on mount
+  // Sync on mount, then check PIN
   useEffect(() => {
-    if (!isPinSet()) {
-      // First launch — show PIN setup
-      setLocked(true);
-    }
+    syncOnLoad().then(() => {
+      // After sync, PIN may have been pulled from cloud
+      if (!isPinSet()) {
+        setLocked(true); // will show PIN setup
+      }
+    }).catch(() => {});
   }, []);
 
   // Inactivity timer

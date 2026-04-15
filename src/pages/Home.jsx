@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getEntries, exportAllData, importData } from '../storage';
+import { getEntries, exportAllData, importData, linkToAccount } from '../storage';
+import { getUserId } from '../supabase';
 import { calculateCurrentRating, calculatePaceStatus, filterTo90Days, groupByDate } from '../ratingEngine';
 
 function exportCSV(entries) {
@@ -39,6 +40,98 @@ const statusColors = {
 
 const ratingColors = { 0: 'var(--text-muted)', 10: 'var(--yellow)', 20: '#86efac', 30: 'var(--green)' };
 
+function SyncSection() {
+  const [linkId, setLinkId] = useState('');
+  const [msg, setMsg] = useState('');
+  const [copied, setCopied] = useState(false);
+  const userId = getUserId();
+
+  const handleCopy = () => {
+    if (userId) {
+      navigator.clipboard.writeText(userId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    }
+  };
+
+  const handleLink = async () => {
+    const id = linkId.trim();
+    if (!id) return;
+    try {
+      const result = await linkToAccount(id);
+      setMsg(`Linked! ${result.entries} entries synced. Reloading...`);
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (e) {
+      setMsg(e.message);
+    }
+  };
+
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: 16, marginBottom: 24,
+    }}>
+      <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8 }}>
+        ACCOUNT & SYNC
+      </div>
+
+      {userId && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Your Account ID</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{
+              flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '8px 10px', fontSize: 12, fontFamily: 'var(--font-mono)',
+              color: 'var(--text-primary)', wordBreak: 'break-all',
+            }}>{userId}</div>
+            <button onClick={handleCopy} style={{
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '8px 12px', fontSize: 12,
+              color: copied ? 'var(--green)' : 'var(--blue-light)',
+              fontFamily: 'var(--font-mono)', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>{copied ? '✓ Copied' : 'Copy'}</button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            Entries and PIN sync automatically. Copy this ID to link another device.
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Link Another Device</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={linkId} onChange={e => setLinkId(e.target.value)}
+            placeholder="Paste Account ID here"
+            style={{
+              flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '8px 10px', fontSize: 16, color: 'var(--text-primary)',
+              fontFamily: 'var(--font-mono)', outline: 'none',
+            }}
+          />
+          <button onClick={handleLink} style={{
+            background: 'var(--blue)', border: 'none', borderRadius: 6,
+            padding: '8px 16px', color: 'white', fontSize: 13,
+            fontFamily: 'var(--font-mono)', cursor: 'pointer',
+          }}>Link</button>
+        </div>
+      </div>
+
+      {msg && (
+        <div style={{ fontSize: 12, color: msg.includes('!') ? 'var(--green)' : 'var(--red)', marginTop: 8, fontFamily: 'var(--font-mono)' }}>
+          {msg}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+        <button onClick={exportAllData} style={{
+          width: '100%', height: 38, borderRadius: 8, background: 'transparent',
+          border: '1px solid var(--border)', color: 'var(--text-muted)',
+          fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono)',
+        }}>Export JSON Backup</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const entries = useMemo(() => getEntries(), []);
@@ -48,8 +141,6 @@ export default function Home() {
   const filtered90 = useMemo(() => filterTo90Days(entries), [entries]);
   const grouped90 = useMemo(() => groupByDate(filtered90), [filtered90]);
 
-  const [importMsg, setImportMsg] = useState(null);
-  const fileInputRef = useRef(null);
 
   const daysLogged = Object.keys(grouped90).length;
   const todayEpisodes = grouped90[(() => {
@@ -60,23 +151,6 @@ export default function Home() {
 
   const sc = statusColors[pace.status] || statusColors.green;
   const progressPct = Math.min(100, (pace.painDaysLogged / 13) * 100);
-
-  const handleImport = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const result = importData(ev.target.result);
-        setImportMsg(`Imported: ${result.added} new, ${result.updated} updated. Refresh to see changes.`);
-        setTimeout(() => window.location.reload(), 2000);
-      } catch (err) {
-        setImportMsg(err.message);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
 
   return (
     <div style={{ padding: '0 16px' }}>
@@ -195,42 +269,8 @@ export default function Home() {
         )}
       </div>
 
-      {/* Cross-Device Sync: JSON Export/Import */}
-      <div style={{
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 12, padding: 16, marginBottom: 24,
-      }}>
-        <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4 }}>
-          CROSS-DEVICE TRANSFER
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          Export a backup on one device, import it on another to sync your entries.
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={exportAllData} style={{
-            flex: 1, height: 42, borderRadius: 8, background: 'transparent',
-            border: '1px solid var(--border)', color: 'var(--blue-light)',
-            fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono)',
-          }}>Export Backup</button>
-          <button onClick={() => fileInputRef.current?.click()} style={{
-            flex: 1, height: 42, borderRadius: 8, background: 'transparent',
-            border: '1px solid var(--border)', color: 'var(--blue-light)',
-            fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono)',
-          }}>Import Backup</button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            style={{ display: 'none' }}
-            onChange={handleImport}
-          />
-        </div>
-        {importMsg && (
-          <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8, fontFamily: 'var(--font-mono)' }}>
-            {importMsg}
-          </div>
-        )}
-      </div>
+      {/* Account & Sync */}
+      <SyncSection />
     </div>
   );
 }

@@ -97,15 +97,26 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Sync on mount, then check PIN
+  // Sync on mount
   useEffect(() => {
     syncOnLoad().then(() => {
-      // After sync, PIN may have been pulled from cloud
-      if (!isPinSet()) {
-        setLocked(true); // will show PIN setup
-      }
+      if (!isPinSet()) setLocked(true);
     }).catch(() => {});
   }, []);
+
+  // Re-sync when app comes back to foreground (tab switch, phone wake, etc.)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && !locked) {
+        syncOnLoad().then(() => {
+          // Force re-render by navigating to current path
+          navigate(location.pathname, { replace: true });
+        }).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [locked, navigate, location.pathname]);
 
   // Inactivity timer
   const resetActivity = useCallback(() => {

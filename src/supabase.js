@@ -1,11 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = 'https://odhqmsiagaifqitzfqbf.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_VLCUmysDQ3gJMHB3thSwxA_u3uJAuts';
 
-export const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const USER_ID_KEY = 'ibs_user_id';
 
